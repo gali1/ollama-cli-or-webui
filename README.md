@@ -20,7 +20,8 @@ Download it from [python.org](https://www.python.org/downloads/).
 2. **Virtual Environment (recommended)**: It's recommended to create a
 virtual environment to manage dependencies.
 
-3. **API Keys/Access**: Ensure you have the necessary API keys oraccess tokens for the Llama model if using it.
+3. **API Keys/Access**: Ensure you have the necessary
+API keys or access tokens for the Llama model if using it. (Optional)
 
 ## Setup
 
