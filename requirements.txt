@@ -1,0 +1,5 @@
+flask
+python-dotenv
+transformers
+torch
+llama-cpp-python
