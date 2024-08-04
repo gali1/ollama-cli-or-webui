@@ -95,7 +95,7 @@ python llama-direct-llm-c.py
 
 **Example Response:**
 
-```json
+```bash
 import java.util.Random;
 
 public class Main {
