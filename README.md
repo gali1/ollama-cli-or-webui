@@ -9,15 +9,18 @@ This project provides two methods to generate text responses:
 - A Flask-based web service.
 - A CLI-based (non-Flask) application.
 
-Both methods can use either the Transformers library with Hugging Face models or Llama (via `llama_cpp`).
+Both methods can use either the Transformers library with
+Hugging Face models or Llama (via `llama_cpp`).
 
 ## Prerequisites
 
-1. **Python 3.7 or higher**: Ensure that you have Python installed. Download it from [python.org](https://www.python.org/downloads/).
+1. **Python 3.7 or higher**: Ensure that you have Python installed.
+Download it from [python.org](https://www.python.org/downloads/).
 
-2. **Virtual Environment (recommended)**: It's recommended to create a virtual environment to manage dependencies.
+2. **Virtual Environment (recommended)**: It's recommended to create a
+virtual environment to manage dependencies.
 
-3. **API Keys/Access**: Ensure you have the necessary API keys or access tokens for the Llama model if using it.
+3. **API Keys/Access**: Ensure you have the necessary API keys oraccess tokens for the Llama model if using it.
 
 ## Setup
 
