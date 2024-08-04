@@ -27,8 +27,8 @@ virtual environment to manage dependencies.
 ### 1. Clone the Repository
 
 ```bash
-git clone <repository-url>
-cd <repository-directory>
+git clone [<repository-url>](https://github.com/gali1/ollama-cli-or-webui.git)
+cd ollama-cli-or-webui
 ```
 
 ### 2. Create and Activate a Virtual Environment
