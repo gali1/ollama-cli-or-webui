@@ -44,7 +44,7 @@ source venv/bin/activate  # On Windows use: venv\Scripts\activate
 Create a `requirements.txt` file or use the following command to install the necessary packages:
 
 ```bash
-pip install flask python-dotenv transformers torch llama_cpp
+pip install flask python-dotenv transformers torch llama-cpp-python
 ```
 
 ### 4. Configure Environment Variables
