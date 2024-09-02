@@ -76,40 +76,48 @@ def generate_response_transformers(prompt: str) -> str:
 
     return tokenizer.decode(output[0], skip_special_tokens=True).strip()
 
-def generate_response_llama(prompt: str) -> str:
+def generate_response_llama(prompt: str):
     """Generate response using the Llama model."""
     try:
+        # Adjust parameters based on the Llama model API
         response = model.create_completion(prompt, max_tokens=config.max_tokens)
 
         # Extract the generated text from the response
-        text = response.get('choices', [{}])[0].get('text', '')
+        if isinstance(response, dict):
+            choices = response.get('choices', [])
+            if choices and isinstance(choices[0], dict):
+                text = choices[0].get('text', '')
+            else:
+                text = ''
+        else:
+            text = response
 
         # Ensure that text is correctly formatted and wrapped
         formatted_text = text.strip().replace('\n', '\n\n')  # Double newlines for readability
-        return formatted_text
+
+        # Yielding each chunk of the response for proper streaming
+        for chunk in formatted_text.split('\n\n'):
+            yield chunk
     except Exception as e:
         # Handle errors that occur during generation
         print(f"Error in Llama model generation: {str(e)}")
-        return "Error generating response."
+        yield "Error generating response."
 
 @app.route("/generate", methods=["POST"])
 def generate():
     """Handle POST requests to generate responses."""
     data = request.json
-    prompt = data["prompt"]
+    prompt = data.get("prompt", "")
 
     try:
         if config.use_llama_cpp:
-            response = generate_response_llama(prompt)
+            response_generator = generate_response_llama(prompt)
         else:
-            response = generate_response_transformers(prompt)
+            response_generator = generate_response_transformers(prompt)
 
-        # Post-processing for improved coherence and reduced repetition
-        response = response.strip()
-        sentences = response.split('.')
-        coherent_response = '. '.join(sentence.capitalize().strip() for sentence in sentences if sentence.strip())
-        
-        return jsonify({"response": coherent_response})
+        # Get the first response chunk
+        response_text = next(response_generator)
+        return jsonify({"response": response_text})
     except Exception as e:
         print(f"Error generating response: {str(e)}")
         return jsonify({"error": "Error generating response"}), 500
