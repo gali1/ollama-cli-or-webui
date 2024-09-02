@@ -1,6 +1,4 @@
 import os
-import json
-import platform
 from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor
@@ -8,7 +6,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
 from llama_cpp import Llama
 from dataclasses import dataclass
-from typing import Optional, Union
+from typing import Optional
 
 # Load environment variables from .env file
 load_dotenv()
@@ -20,14 +18,14 @@ app = Flask(__name__)
 @dataclass
 class LLMConfig:
     model_name: str = os.getenv("MODEL_NAME", "gpt2")
-    use_llama_cpp: bool = os.getenv("USE_LLAMA_CPP", "True").lower() in ["true", "1", "t"]
+    use_llama_cpp: bool = os.getenv("USE_LLAMA_CPP", "True").lower() == "true"
     llama_model_path: Optional[str] = os.getenv("LLAMA_MODEL_PATH")
     max_tokens: int = int(os.getenv("MAX_TOKENS", "256"))
     temperature: float = float(os.getenv("TEMPERATURE", "0.7"))
     top_p: float = float(os.getenv("TOP_P", "0.95"))
     top_k: int = int(os.getenv("TOP_K", "50"))
-    repetition_penalty: float = float(os.getenv("REPETITION_PENALTY", "1.2"))
-    no_repeat_ngram_size: int = int(os.getenv("NO_REPEAT_NGRAM_SIZE", "4"))
+    repetition_penalty: float = float(os.getenv("REPETITION_PENALTY", "1.2"))  # Increased to reduce repetition
+    no_repeat_ngram_size: int = int(os.getenv("NO_REPEAT_NGRAM_SIZE", "4"))  # Increased to reduce repetition
     num_beams: int = int(os.getenv("NUM_BEAMS", "1"))
     batch_size: int = int(os.getenv("BATCH_SIZE", "128"))
 
@@ -47,7 +45,9 @@ else:
         tokenizer.pad_token_id = tokenizer.eos_token_id
         model.config.pad_token_id = model.config.eos_token_id
 
+    # Move model to GPU if available
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = "cpu"
     model.to(device)
 
 # Create a ThreadPoolExecutor
@@ -58,7 +58,7 @@ def index():
     """Render the index.html template."""
     return render_template("index.html")
 
-def generate_response_transformers(prompt: str) -> str:
+def generate_response_transformers(prompt):
     """Generate response using the Transformers model."""
     inputs = tokenizer(prompt, return_tensors="pt", padding=True, truncation=True)
     input_ids = inputs["input_ids"].to(device)
@@ -89,27 +89,25 @@ def generate_response_transformers(prompt: str) -> str:
         input_ids = batch_output
         attention_mask = torch.ones_like(input_ids)
 
-        # Handle memory pressure
-        if torch.cuda.is_available() and torch.cuda.memory_allocated() > 0.9 * torch.cuda.max_memory_allocated():
-            print("High memory usage detected. Switching to disk-based storage.")
-            break
-
     return "".join(output)
 
-def generate_response_llama(prompt: str) -> str:
+def generate_response_llama(prompt):
     """Generate response using the Llama model."""
-    try:
-        output = model.create_completion(prompt, max_tokens=config.max_tokens)
-        return output.get('choices', [{}])[0].get('text', 'Error generating response.')
-    except Exception as e:
-        print(f"Error generating response with Llama: {str(e)}")
-        return "Error generating response."
+    output = model(
+        prompt,
+        max_tokens=config.max_tokens,
+        temperature=config.temperature,
+        top_p=config.top_p,
+        top_k=config.top_k,
+        repeat_penalty=config.repetition_penalty,
+    )
+    return output['choices'][0]['text']
 
 @app.route("/generate", methods=["POST"])
 def generate():
     """Handle POST requests to generate responses."""
     data = request.json
-    prompt = data.get("prompt", "")
+    prompt = data["prompt"]
 
     try:
         if config.use_llama_cpp:
@@ -141,10 +139,4 @@ def manage_config():
         return jsonify(config.__dict__)
 
 if __name__ == "__main__":
-    # Handle different OS-specific details
-    if platform.system() == "Windows":
-        # On Windows, use threading mode
-        app.run(debug=True, host="0.0.0.0", port=9898, threaded=True)
-    else:
-        # On Unix-like systems, use the default mode
-        app.run(debug=True, host="0.0.0.0", port=9898, threaded=True)
+    app.run(debug=True, host="0.0.0.0", port=9898, threaded=True)
