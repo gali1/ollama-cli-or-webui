@@ -1,29 +1,16 @@
 import os
-import sys
-import psutil  # For monitoring memory usage
-import tempfile  # For temporary disk-based storage
+import platform
 import readline  # For command history and editing in terminal
 from flask import Flask, request, jsonify
+from dotenv import load_dotenv
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
 from llama_cpp import Llama
 from dataclasses import dataclass
-from typing import Optional, Generator
-import subprocess  # To run external commands
+from typing import Optional, Union
 
-def download_model():
-    """Download the model file using wget."""
-    url = "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q8_0.gguf"
-    command = ["wget", "-c", url]
-    try:
-        subprocess.run(command, check=True)
-        print("Model downloaded successfully.")
-    except subprocess.CalledProcessError as e:
-        print(f"Error occurred while downloading the model: {e}")
-        sys.exit(1)  # Exit the script if the download fails
-
-# Call the download function before any other operations
-download_model()
+# Load environment variables from .env file
+load_dotenv()
 
 # Initialize Flask application
 app = Flask(__name__)
@@ -31,17 +18,17 @@ app = Flask(__name__)
 # Configuration
 @dataclass
 class LLMConfig:
-    model_name: str = "gpt2"  # Default model name if not using Llama
-    use_llama_cpp: bool = True
-    llama_model_path: Optional[str] = "tinyllama-1.1b-chat-v1.0.Q8_0.gguf"
-    max_tokens: int = 256
-    temperature: float = 0.7
-    top_p: float = 0.95
-    top_k: int = 50
-    repetition_penalty: float = 1.2
-    no_repeat_ngram_size: int = 4
-    num_beams: int = 1
-    batch_size: int = 128
+    model_name: str = os.getenv("MODEL_NAME", "gpt2")
+    use_llama_cpp: bool = os.getenv("USE_LLAMA_CPP", "True").lower() in ["true", "1", "t"]
+    llama_model_path: Optional[str] = os.getenv("LLAMA_MODEL_PATH")
+    max_tokens: int = int(os.getenv("MAX_TOKENS", "256"))
+    temperature: float = float(os.getenv("TEMPERATURE", "0.7"))
+    top_p: float = float(os.getenv("TOP_P", "0.95"))
+    top_k: int = int(os.getenv("TOP_K", "50"))
+    repetition_penalty: float = float(os.getenv("REPETITION_PENALTY", "1.2"))
+    no_repeat_ngram_size: int = int(os.getenv("NO_REPEAT_NGRAM_SIZE", "4"))
+    num_beams: int = int(os.getenv("NUM_BEAMS", "1"))
+    batch_size: int = int(os.getenv("BATCH_SIZE", "128"))
 
 config = LLMConfig()
 
@@ -62,12 +49,6 @@ else:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
-# Helper functions
-def check_memory_usage() -> bool:
-    """Check current memory usage and return True if high."""
-    memory_info = psutil.virtual_memory()
-    return memory_info.percent > 80  # Threshold of 80% usage
-
 def generate_response_transformers(prompt: str) -> str:
     """Generate response using the Transformers model."""
     if tokenizer is None:
@@ -76,7 +57,7 @@ def generate_response_transformers(prompt: str) -> str:
     inputs = tokenizer(prompt, return_tensors="pt", padding=True, truncation=True)
     input_ids = inputs["input_ids"].to(device)
     attention_mask = inputs["attention_mask"].to(device)
-
+    
     output = model.generate(
         input_ids,
         attention_mask=attention_mask,
@@ -95,27 +76,21 @@ def generate_response_transformers(prompt: str) -> str:
 
     return tokenizer.decode(output[0], skip_special_tokens=True).strip()
 
-def generate_response_llama(prompt: str) -> Generator[str, None, None]:
+def generate_response_llama(prompt: str) -> str:
     """Generate response using the Llama model."""
     try:
         response = model.create_completion(prompt, max_tokens=config.max_tokens)
 
-        if isinstance(response, dict):
-            choices = response.get('choices', [])
-            if choices and isinstance(choices[0], dict):
-                text = choices[0].get('text', '')
-            else:
-                text = ''
-        else:
-            text = response
+        # Extract the generated text from the response
+        text = response.get('choices', [{}])[0].get('text', '')
 
+        # Ensure that text is correctly formatted and wrapped
         formatted_text = text.strip().replace('\n', '\n\n')  # Double newlines for readability
-
-        for chunk in formatted_text.split('\n\n'):
-            yield chunk
+        return formatted_text
     except Exception as e:
+        # Handle errors that occur during generation
         print(f"Error in Llama model generation: {str(e)}")
-        yield "Error generating response."
+        return "Error generating response."
 
 @app.route("/generate", methods=["POST"])
 def generate():
@@ -123,16 +98,11 @@ def generate():
     data = request.json
     prompt = data.get("prompt", "")
 
-    if check_memory_usage():
-        return jsonify({"warning": "High memory usage detected. Disk-based storage is in effect."}), 503
-
     try:
         if config.use_llama_cpp:
-            response_generator = generate_response_llama(prompt)
+            response_text = generate_response_llama(prompt)
         else:
-            response_generator = generate_response_transformers(prompt)
-
-        response_text = next(response_generator)
+            response_text = generate_response_transformers(prompt)
         return jsonify({"response": response_text})
     except Exception as e:
         print(f"Error generating response: {str(e)}")
@@ -143,7 +113,7 @@ if __name__ == "__main__":
     readline.parse_and_bind('tab: complete')
     readline.parse_and_bind('set editing-mode vi')  # Optional: Use vi-style editing
 
-    history_file = os.path.join(tempfile.gettempdir(), "query_history")
+    history_file = os.path.expanduser("~/.query_history")
     if os.path.exists(history_file):
         readline.read_history_file(history_file)
 
@@ -156,16 +126,12 @@ if __name__ == "__main__":
                 break
 
             if prompt:
-                if check_memory_usage():
-                    print("High memory usage detected. Using disk-based storage.")
-                    # Use temporary files for storage or similar strategy here if necessary
                 if config.use_llama_cpp:
                     response = generate_response_llama(prompt)
                 else:
                     response = generate_response_transformers(prompt)
                 
-                for chunk in response:
-                    print(chunk)
+                print(response)
 
                 # Save the prompt to history file
                 readline.add_history(prompt)
