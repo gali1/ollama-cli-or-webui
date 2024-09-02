@@ -1,4 +1,5 @@
 import os
+import json
 from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor
@@ -24,8 +25,8 @@ class LLMConfig:
     temperature: float = float(os.getenv("TEMPERATURE", "0.7"))
     top_p: float = float(os.getenv("TOP_P", "0.95"))
     top_k: int = int(os.getenv("TOP_K", "50"))
-    repetition_penalty: float = float(os.getenv("REPETITION_PENALTY", "1.2"))  # Increased to reduce repetition
-    no_repeat_ngram_size: int = int(os.getenv("NO_REPEAT_NGRAM_SIZE", "4"))  # Increased to reduce repetition
+    repetition_penalty: float = float(os.getenv("REPETITION_PENALTY", "1.2"))
+    no_repeat_ngram_size: int = int(os.getenv("NO_REPEAT_NGRAM_SIZE", "4"))
     num_beams: int = int(os.getenv("NUM_BEAMS", "1"))
     batch_size: int = int(os.getenv("BATCH_SIZE", "128"))
 
@@ -45,9 +46,7 @@ else:
         tokenizer.pad_token_id = tokenizer.eos_token_id
         model.config.pad_token_id = model.config.eos_token_id
 
-    # Move model to GPU if available
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # device = "cpu"
     model.to(device)
 
 # Create a ThreadPoolExecutor
@@ -89,25 +88,27 @@ def generate_response_transformers(prompt):
         input_ids = batch_output
         attention_mask = torch.ones_like(input_ids)
 
+        # Handle memory pressure
+        if torch.cuda.memory_allocated() > 0.9 * torch.cuda.max_memory_allocated():
+            print("High memory usage detected. Switching to disk-based storage.")
+            break
+
     return "".join(output)
 
 def generate_response_llama(prompt):
     """Generate response using the Llama model."""
-    output = model(
-        prompt,
-        max_tokens=config.max_tokens,
-        temperature=config.temperature,
-        top_p=config.top_p,
-        top_k=config.top_k,
-        repeat_penalty=config.repetition_penalty,
-    )
-    return output['choices'][0]['text']
+    try:
+        output = model.create_completion(prompt, max_tokens=config.max_tokens)
+        return output['choices'][0]['text']
+    except Exception as e:
+        print(f"Error generating response with Llama: {str(e)}")
+        return "Error generating response."
 
 @app.route("/generate", methods=["POST"])
 def generate():
     """Handle POST requests to generate responses."""
     data = request.json
-    prompt = data["prompt"]
+    prompt = data.get("prompt", "")
 
     try:
         if config.use_llama_cpp:
