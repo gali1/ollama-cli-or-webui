@@ -4,30 +4,26 @@ import psutil  # For monitoring memory usage
 import tempfile  # For temporary disk-based storage
 import readline  # For command history and editing in terminal
 from flask import Flask, request, jsonify
-from dotenv import load_dotenv
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
 from llama_cpp import Llama
 from dataclasses import dataclass
 from typing import Optional, Generator
+import subprocess  # To run external commands
 
-# Load environment variables from .env file
-load_dotenv()
+def download_model():
+    """Download the model file using wget."""
+    url = "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q8_0.gguf"
+    command = ["wget", "-c", url]
+    try:
+        subprocess.run(command, check=True)
+        print("Model downloaded successfully.")
+    except subprocess.CalledProcessError as e:
+        print(f"Error occurred while downloading the model: {e}")
+        sys.exit(1)  # Exit the script if the download fails
 
-# Detect platform and architecture
-platform = sys.platform
-is_windows = platform.startswith("win")
-is_linux = platform.startswith("linux")
-is_macos = platform.startswith("darwin")
-
-architecture = "unknown"
-if sys.maxsize > 2**32:
-    architecture = "64-bit"
-else:
-    architecture = "32-bit"
-
-if sys.implementation.name == "cpython" and "arm" in platform:
-    architecture += " ARM"
+# Call the download function before any other operations
+download_model()
 
 # Initialize Flask application
 app = Flask(__name__)
@@ -35,17 +31,17 @@ app = Flask(__name__)
 # Configuration
 @dataclass
 class LLMConfig:
-    model_name: str = os.getenv("MODEL_NAME", "gpt2")
-    use_llama_cpp: bool = os.getenv("USE_LLAMA_CPP", "true").lower() in ("true", "1", "t", "y", "yes")
-    llama_model_path: Optional[str] = os.getenv("LLAMA_MODEL_PATH")
-    max_tokens: int = int(os.getenv("MAX_TOKENS", "256"))
-    temperature: float = float(os.getenv("TEMPERATURE", "0.7"))
-    top_p: float = float(os.getenv("TOP_P", "0.95"))
-    top_k: int = int(os.getenv("TOP_K", "50"))
-    repetition_penalty: float = float(os.getenv("REPETITION_PENALTY", "1.2"))
-    no_repeat_ngram_size: int = int(os.getenv("NO_REPEAT_NGRAM_SIZE", "4"))
-    num_beams: int = int(os.getenv("NUM_BEAMS", "1"))
-    batch_size: int = int(os.getenv("BATCH_SIZE", "128"))
+    model_name: str = "gpt2"  # Default model name if not using Llama
+    use_llama_cpp: bool = True
+    llama_model_path: Optional[str] = "tinyllama-1.1b-chat-v1.0.Q8_0.gguf"
+    max_tokens: int = 256
+    temperature: float = 0.7
+    top_p: float = 0.95
+    top_k: int = 50
+    repetition_penalty: float = 1.2
+    no_repeat_ngram_size: int = 4
+    num_beams: int = 1
+    batch_size: int = 128
 
 config = LLMConfig()
 
