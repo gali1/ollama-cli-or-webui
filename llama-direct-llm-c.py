@@ -1,5 +1,4 @@
 import os
-import platform
 import readline  # For command history and editing in terminal
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
@@ -7,7 +6,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
 from llama_cpp import Llama
 from dataclasses import dataclass
-from typing import Optional, Union
+from typing import Optional
 
 # Load environment variables from .env file
 load_dotenv()
@@ -19,7 +18,7 @@ app = Flask(__name__)
 @dataclass
 class LLMConfig:
     model_name: str = os.getenv("MODEL_NAME", "gpt2")
-    use_llama_cpp: bool = os.getenv("USE_LLAMA_CPP", "True").lower() in ["true", "1", "t"]
+    use_llama_cpp: bool = True  # Set to True to use Llama by default
     llama_model_path: Optional[str] = os.getenv("LLAMA_MODEL_PATH")
     max_tokens: int = int(os.getenv("MAX_TOKENS", "256"))
     temperature: float = float(os.getenv("TEMPERATURE", "0.7"))
@@ -49,7 +48,7 @@ else:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
-def generate_response_transformers(prompt: str) -> str:
+def generate_response_transformers(prompt: str):
     """Generate response using the Transformers model."""
     if tokenizer is None:
         raise RuntimeError("Tokenizer is not available for Transformers model.")
@@ -145,7 +144,8 @@ if __name__ == "__main__":
                 else:
                     response = generate_response_transformers(prompt)
                 
-                print(response)
+                for chunk in response:
+       	            print(chunk)
 
                 # Save the prompt to history file
                 readline.add_history(prompt)
