@@ -1,25 +1,26 @@
-Here's the updated documentation incorporating all changes related to memory efficiency, improved platform support, and error handling:
 
 ```markdown
 # Use LLM Using CLI or WEB-UI
 
 ## Overview
 
-This project provides two ways to generate text responses:
+This project provides two methods to generate text responses:
 - A Flask-based web service.
 - A CLI-based (non-Flask) application.
 
-Both methods can utilize either the Transformers library with Hugging Face models or Llama (via `llama_cpp`). 
-
-We've added support for memory monitoring and efficient disk usage to handle high memory consumption, and the code is now optimized for various operating systems and hardware architectures.
+Both methods can use either the Transformers library with
+Hugging Face models or Llama (via `llama_cpp`).
 
 ## Prerequisites
 
-1. **Python 3.7 or higher**: Make sure Python is installed. Download it from [python.org](https://www.python.org/downloads/).
+1. **Python 3.7 or higher**: Ensure that you have Python installed.
+Download it from [python.org](https://www.python.org/downloads/).
 
-2. **Virtual Environment (recommended)**: Creating a virtual environment helps manage dependencies.
+2. **Virtual Environment (recommended)**: It's recommended to create a
+virtual environment to manage dependencies.
 
-3. **API Keys/Access**: For using Llama models, ensure you have the required API keys or access tokens. (Optional)
+3. **API Keys/Access**: Ensure you have the necessary
+API keys or access tokens for the Llama model if using it. (Optional)
 
 ## Setup
 
@@ -139,7 +140,6 @@ curl -X POST http://127.0.0.1:9898/generate -H "Content-Type: application/json" 
 - **Missing Environment Variables**: Ensure all required environment variables are set in the `.env` file.
 - **Model Loading Issues**: Verify model paths and configurations are correct.
 - **Dependency Issues**: Ensure all dependencies are installed and compatible with your Python version.
-- **High Memory Usage**: If the application detects high memory usage, it will switch to using disk storage for operations to manage memory more efficiently. You'll receive a notification if this happens.
 
 ---
 Feel free to reach out if you have any questions or run into issues. Happy coding!
