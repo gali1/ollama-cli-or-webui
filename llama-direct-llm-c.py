@@ -96,14 +96,20 @@ def generate_response_llama(prompt: str) -> str:
 def generate():
     """Handle POST requests to generate responses."""
     data = request.json
-    prompt = data.get("prompt", "")
+    prompt = data["prompt"]
 
     try:
         if config.use_llama_cpp:
-            response_text = generate_response_llama(prompt)
+            response = generate_response_llama(prompt)
         else:
-            response_text = generate_response_transformers(prompt)
-        return jsonify({"response": response_text})
+            response = generate_response_transformers(prompt)
+
+        # Post-processing for improved coherence and reduced repetition
+        response = response.strip()
+        sentences = response.split('.')
+        coherent_response = '. '.join(sentence.capitalize().strip() for sentence in sentences if sentence.strip())
+        
+        return jsonify({"response": coherent_response})
     except Exception as e:
         print(f"Error generating response: {str(e)}")
         return jsonify({"error": "Error generating response"}), 500
