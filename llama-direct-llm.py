@@ -1,5 +1,6 @@
 import os
 import json
+import platform
 from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor
@@ -7,7 +8,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
 from llama_cpp import Llama
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Union
 
 # Load environment variables from .env file
 load_dotenv()
@@ -19,7 +20,7 @@ app = Flask(__name__)
 @dataclass
 class LLMConfig:
     model_name: str = os.getenv("MODEL_NAME", "gpt2")
-    use_llama_cpp: bool = os.getenv("USE_LLAMA_CPP", "True").lower() == "true"
+    use_llama_cpp: bool = os.getenv("USE_LLAMA_CPP", "True").lower() in ["true", "1", "t"]
     llama_model_path: Optional[str] = os.getenv("LLAMA_MODEL_PATH")
     max_tokens: int = int(os.getenv("MAX_TOKENS", "256"))
     temperature: float = float(os.getenv("TEMPERATURE", "0.7"))
@@ -57,7 +58,7 @@ def index():
     """Render the index.html template."""
     return render_template("index.html")
 
-def generate_response_transformers(prompt):
+def generate_response_transformers(prompt: str) -> str:
     """Generate response using the Transformers model."""
     inputs = tokenizer(prompt, return_tensors="pt", padding=True, truncation=True)
     input_ids = inputs["input_ids"].to(device)
@@ -89,17 +90,17 @@ def generate_response_transformers(prompt):
         attention_mask = torch.ones_like(input_ids)
 
         # Handle memory pressure
-        if torch.cuda.memory_allocated() > 0.9 * torch.cuda.max_memory_allocated():
+        if torch.cuda.is_available() and torch.cuda.memory_allocated() > 0.9 * torch.cuda.max_memory_allocated():
             print("High memory usage detected. Switching to disk-based storage.")
             break
 
     return "".join(output)
 
-def generate_response_llama(prompt):
+def generate_response_llama(prompt: str) -> str:
     """Generate response using the Llama model."""
     try:
         output = model.create_completion(prompt, max_tokens=config.max_tokens)
-        return output['choices'][0]['text']
+        return output.get('choices', [{}])[0].get('text', 'Error generating response.')
     except Exception as e:
         print(f"Error generating response with Llama: {str(e)}")
         return "Error generating response."
@@ -140,4 +141,10 @@ def manage_config():
         return jsonify(config.__dict__)
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=9898, threaded=True)
+    # Handle different OS-specific details
+    if platform.system() == "Windows":
+        # On Windows, use threading mode
+        app.run(debug=True, host="0.0.0.0", port=9898, threaded=True)
+    else:
+        # On Unix-like systems, use the default mode
+        app.run(debug=True, host="0.0.0.0", port=9898, threaded=True)
